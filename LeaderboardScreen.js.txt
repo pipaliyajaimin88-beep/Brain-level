@@ -1,0 +1,118 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, FlatList, ActivityIndicator, StyleSheet, RefreshControl } from 'react-native';
+
+export default function LeaderboardScreen() {
+  const = useState();
+  const = useState(true);
+  const [networkError, setNetworkError] = useState(null);
+  const = useState(false);
+
+  // Trigger network request upon component mounting
+  useEffect(() => {
+    executeLeaderboardFetch();
+  },);
+
+  const executeLeaderboardFetch = async () => {
+    try {
+      setNetworkError(null);
+      // Replace target URL with the production API endpoint
+      // Implementing a timeout mechanism prevents infinite hanging on poor connections
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      
+      const response = await fetch('https://api.yourdomain.com/v1/leaderboard', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP Transport Error: ${response.status}`);
+      }
+      
+      const parsedData = await response.json();
+      
+      // Algorithmically sort the retrieved data payload by score sequentially
+      const sequentiallySortedData = parsedData.sort((a, b) => b.score - a.score);
+      setLeaderboardData(sequentiallySortedData);
+    } catch (err) {
+      console.error("Leaderboard Network Resolution Failed: ", err);
+      // The 'Rahul' hallucination is circumvented entirely. State remains empty.
+      setNetworkError("Failed to synchronize global rankings. Please check your connection.");
+    } finally {
+      setIsDataLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  const onPullToRefresh = () => {
+    setIsRefreshing(true);
+    executeLeaderboardFetch();
+  };
+
+  const renderRankingItem = ({ item, index }) => (
+    <View style={styles.dataRow}>
+      <Text style={styles.rankIdentifier}>#{index + 1}</Text>
+      <Text style={styles.playerName} numberOfLines={1}>{item.name}</Text>
+      <Text style={styles.playerScore}>{item.score} pts</Text>
+    </View>
+  );
+
+  return (
+    <View style={styles.masterContainer}>
+      <Text style={styles.headerTypography}>Global Rankings</Text>
+      
+      {isDataLoading? (
+        <View style={styles.loadingWrapper}>
+          <ActivityIndicator size="large" color="#0d6efd" />
+          <Text style={styles.loadingTypography}>Synchronizing Database...</Text>
+        </View>
+      ) : networkError? (
+        <View style={styles.errorWrapper}>
+          <Text style={styles.errorTypography}>{networkError}</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={leaderboardData}
+          keyExtractor={(item) => item.id? item.id.toString() : Math.random().toString()}
+          renderItem={renderRankingItem}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={isRefreshing} onRefresh={onPullToRefresh} />
+          }
+          ListEmptyComponent={
+            <Text style={styles.emptyStateTypography}>No global scores recorded yet.</Text>
+          }
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  masterContainer: { flex: 1, backgroundColor: '#ffffff', paddingTop: 20 },
+  headerTypography: { fontSize: 28, fontWeight: '800', textAlign: 'center', marginVertical: 20, color: '#212529' },
+  dataRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center',
+    padding: 18, 
+    borderBottomWidth: 1, 
+    borderColor: '#e9ecef' 
+  },
+  rankIdentifier: { fontWeight: '700', fontSize: 16, width: 40, color: '#495057' },
+  playerName: { flex: 1, fontSize: 16, color: '#212529', paddingRight: 10 },
+  playerScore: { fontWeight: '800', fontSize: 16, color: '#0d6efd' },
+  loadingWrapper: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingTypography: { marginTop: 12, color: '#6c757d' },
+  errorWrapper: { padding: 20, backgroundColor: '#ffe5e5', margin: 20, borderRadius: 8 },
+  errorTypography: { color: '#dc3545', textAlign: 'center', fontWeight: '600' },
+  emptyStateTypography: { textAlign: 'center', marginTop: 40, fontStyle: 'italic', color: '#adb5bd' },
+  listContainer: { paddingBottom: 40 }
+});
