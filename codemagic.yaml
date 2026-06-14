@@ -1,1 +1,60 @@
+workflows:
+  android-release-workflow:
+    name: Android Production Release Compilation
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    
+    environment:
+      groups:
+        - keystore_credentials_group
+      node: latest
+      java: 17 
+    
+    triggering:
+      events:
+        - push
+        - tag
+      branch_patterns:
+        - pattern: 'main'
+          include: true
+          source: true
 
+    scripts:
+      - name: Resolve and Install JavaScript Dependencies
+        script: |
+          npm install --legacy-peer-deps
+          
+      - name: Execute Expo Application Services (EAS) Prebuild
+        script: |
+          npx expo prebuild --platform android --clean
+          
+      - name: Synchronize local.properties with Virtual Machine Android SDK
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+          
+      - name: Decode and Apply Cryptographic Keystore
+        script: |
+          echo $KEYSTORE_BASE64 | base64 --decode > $CM_BUILD_DIR/android/app/keystore.jks
+          cat >> "$CM_BUILD_DIR/android/key.properties" <<EOF
+          storePassword=$KEYSTORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=../keystore.jks
+          EOF
+          
+      - name: Execute Gradle Daemon to Assemble Production APK
+        script: |
+          cd android
+         ./gradlew assembleRelease
+
+    artifacts:
+      - android/app/build/outputs/**/*.apk
+      - android/app/build/outputs/**/mapping.txt 
+
+    publishing:
+      email:
+        recipients:
+          - developer@yourcompany.com
+        notify:
+          success: true
+          failure: true
