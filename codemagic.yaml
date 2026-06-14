@@ -45,7 +45,7 @@ workflows:
       - name: Execute Gradle Daemon to Assemble Production APK
         script: |
           cd android
-         ./gradlew assembleRelease
+        
 
     artifacts:
       - android/app/build/outputs/**/*.apk
